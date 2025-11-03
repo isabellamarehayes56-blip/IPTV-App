@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <title>Live TV Channels</title>
+
+    <!-- PWA Meta Tags & Icon -->
+    <meta name="theme-color" content="#1a1a2e"/>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    
+    <!-- Stylesheet and Fonts -->
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <!-- HLS.js for Video Streaming -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Live TV Channels</h1>
+            <div class="search-container">
+                <input type="text" id="search-bar" placeholder="Search for channels...">
+            </div>
+        </header>
+
+        <main>
+            <div class="video-container">
+                <video id="video-player" controls autoplay></video>
+                <div id="now-playing">
+                    <h2>Select a channel to start watching</h2>
+                </div>
+            </div>
+            <div id="channel-list" class="channel-grid">
+                <!-- Loader will be shown initially -->
+                <div class="loader"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+
+    <!-- Service Worker Registration Script -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('ServiceWorker registration failed: ', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
