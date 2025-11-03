@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live TV Channels</title>
+    <meta name="theme-color" content="#10101d"/>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        :root {
+            --primary-color: #10101d; --secondary-color: #1c1c2b; --accent-color: #e41a4a; --text-color: #f0f0f0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: var(--primary-color); color: var(--text-color); margin: 0;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 15px; }
+        header { text-align: center; padding: 20px 0; }
+        header h1 { color: var(--accent-color); margin: 0; }
+        #search-bar { width: 100%; max-width: 500px; padding: 12px 20px; margin-top: 20px; border-radius: 50px; border: 2px solid var(--secondary-color); background-color: var(--secondary-color); color: var(--text-color); font-size: 16px; outline: none; transition: all 0.3s; }
+        #search-bar:focus { border-color: var(--accent-color); }
+        #status-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 50vh; }
+        .loader { border: 6px solid var(--secondary-color); border-top: 6px solid var(--accent-color); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        #status-message { margin-top: 20px; font-size: 1.1em; }
+        #channel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 15px; padding-top: 20px; }
+        .channel-card { background-color: var(--secondary-color); border-radius: 8px; padding: 10px; text-align: center; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; aspect-ratio: 1 / 1; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .channel-card:hover { transform: scale(1.05); box-shadow: 0 0 15px rgba(228, 26, 74, 0.4); }
+        .channel-logo { width: 70%; height: 70%; object-fit: contain; }
+        .channel-name { font-size: 0.9em; margin-top: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); justify-content: center; align-items: center; }
+        .modal-content { background-color: var(--primary-color); padding: 20px; border-radius: 10px; width: 90%; max-width: 800px; position: relative; border: 1px solid var(--secondary-color); }
+        .close-button { position: absolute; top: -15px; right: -15px; color: #fff; background-color: var(--accent-color); font-size: 20px; font-weight: bold; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; line-height: 30px; }
+        #player-container { background-color: #000; border-radius: 8px; }
+        #video-player { width: 100%; }
+        #player-status { color: var(--text-color); text-align: center; padding: 20px; font-size: 1.1em; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Live TV Channels</h1>
+            <input type="text" id="search-bar" placeholder="Search for a channel..." disabled>
+        </header>
+        <div id="status-container">
+            <div class="loader"></div>
+            <p id="status-message">Loading thousands of channels...</p>
+        </div>
+        <div id="channel-grid"></div>
+    </div>
+    <div id="player-modal" class="modal">
+        <div class="modal-content">
+            <span id="close-modal" class="close-button">&times;</span>
+            <div id="player-container">
+                <p id="player-status">Loading Channel...</p>
+                <video id="video-player" controls></video>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const channelGrid = document.getElementById('channel-grid'), searchBar = document.getElementById('search-bar'), statusContainer = document.getElementById('status-container'), modal = document.getElementById('player-modal'), videoPlayer = document.getElementById('video-player'), closeModal = document.getElementById('close-modal'), playerStatus = document.getElementById('player-status');
+            let hls, allChannels = [];
+            const M3U_URL = 'https://iptv-org.github.io/iptv/index.m3u';
+            async function fetchAndParseM3U() {
+                try {
+                    const response = await fetch(M3U_URL);
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    const data = await response.text(), lines = data.split('\n'), channels = [];
+                    for (let i = 0; i < lines.length; i++) {
+                        if (lines[i].startsWith('#EXTINF:')) {
+                            const infoLine = lines[i], urlLine = lines[i + 1], logoMatch = infoLine.match(/tvg-logo="([^"]+)"/), nameMatch = infoLine.match(/,(.+)/);
+                            if (logoMatch && nameMatch && urlLine && urlLine.startsWith('http')) channels.push({ logo: logoMatch[1], name: nameMatch[1].trim(), url: urlLine.trim() });
+                        }
+                    }
+                    return channels.filter(c => c.logo && c.name && c.url);
+                } catch (error) { statusContainer.innerHTML = '<p>Error loading channels. Please check your internet and refresh.</p>'; return []; }
+            }
+            function displayChannels(channels) {
+                channelGrid.innerHTML = '';
+                channels.forEach(channel => {
+                    const card = document.createElement('div');
+                    card.className = 'channel-card';
+                    card.innerHTML = `<img src="${channel.logo}" alt="${channel.name}" class="channel-logo" loading="lazy" onerror="this.style.display='none'"><p class="channel-name">${channel.name}</p>`;
+                    card.addEventListener('click', () => playChannel(channel));
+                    channelGrid.appendChild(card);
+                });
+            }
+            function playChannel(channel) {
+                videoPlayer.style.display = 'none'; playerStatus.style.display = 'block'; playerStatus.textContent = `Loading: ${channel.name}...`;
+                modal.style.display = 'flex';
+                if (Hls.isSupported()) {
+                    if (hls) hls.destroy();
+                    hls = new Hls();
+                    hls.loadSource(channel.url);
+                    hls.attachMedia(videoPlayer);
+                    hls.on(Hls.Events.MANIFEST_PARSED, () => { videoPlayer.style.display = 'block'; playerStatus.style.display = 'none'; videoPlayer.play(); });
+                    hls.on(Hls.Events.ERROR, () => { playerStatus.textContent = 'This channel is currently unavailable.'; });
+                } else { videoPlayer.src = channel.url; videoPlayer.play(); }
+            }
+            function stopPlayer() {
+                modal.style.display = 'none'; videoPlayer.pause(); videoPlayer.src = ''; if (hls) hls.destroy();
+            }
+            searchBar.addEventListener('input', e => displayChannels(allChannels.filter(c => c.name.toLowerCase().includes(e.target.value.toLowerCase()))));
+            closeModal.addEventListener('click', stopPlayer);
+            async function init() {
+                allChannels = await fetchAndParseM3U();
+                if (allChannels.length > 0) {
+                    statusContainer.style.display = 'none'; displayChannels(allChannels); searchBar.disabled = false; searchBar.placeholder = `Search in ${allChannels.length} channels`;
+                }
+            }
+            init();
+            if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+        });
+    </script>
+</body>
+</html>
