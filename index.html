@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live TV Channels</title>
+    <meta name="theme-color" content="#10101d"/>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
         :root {
             --primary-color: #10101d; --secondary-color: #1c1c2b; --accent-color: #e41a4a; --text-color: #f0f0f0;
@@ -26,15 +30,15 @@
         .channel-logo { width: 70%; height: 70%; object-fit: contain; }
         .channel-name { font-size: 0.9em; margin-top: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); justify-content: center; align-items: center; }
-        .modal-content { background-color: #000; padding: 20px; border-radius: 10px; width: 90%; max-width: 800px; position: relative; }
-        .close-button { position: absolute; top: -15px; right: -15px; color: #fff; background-color: var(--accent-color); font-size: 20px; font-weight: bold; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; }
-        #video-player { width: 100%; background-color: #000; border-radius: 8px; }
+        .modal-content { background-color: var(--primary-color); padding: 20px; border-radius: 10px; width: 90%; max-width: 800px; position: relative; border: 1px solid var(--secondary-color); }
+        .close-button { position: absolute; top: -15px; right: -15px; color: #fff; background-color: var(--accent-color); font-size: 20px; font-weight: bold; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; line-height: 30px; }
+        #player-container { background-color: #000; border-radius: 8px; position: relative; min-height: 200px; }
+        #video-player { width: 100%; display: none; }
+        #player-status { color: var(--text-color); text-align: center; padding: 20px; font-size: 1.1em; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
-
     <div class="container">
         <header>
             <h1>Live TV Channels</h1>
@@ -42,53 +46,39 @@
         </header>
         <div id="status-container">
             <div class="loader"></div>
-            <p id="status-message">Loading channels...</p>
+            <p id="status-message">Loading Pakistani channels...</p>
         </div>
         <div id="channel-grid"></div>
     </div>
-
     <div id="player-modal" class="modal">
         <div class="modal-content">
             <span id="close-modal" class="close-button">&times;</span>
-            <video id="video-player" controls autoplay></video>
+            <div id="player-container">
+                <p id="player-status">Loading Channel...</p>
+                <video id="video-player" controls autoplay></video>
+            </div>
         </div>
     </div>
-
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const channelGrid = document.getElementById('channel-grid');
-            const searchBar = document.getElementById('search-bar');
-            const statusContainer = document.getElementById('status-container');
-            const modal = document.getElementById('player-modal');
-            const videoPlayer = document.getElementById('video-player');
-            const closeModal = document.getElementById('close-modal');
-            let hls;
-            let allChannels = [];
+            const channelGrid = document.getElementById('channel-grid'), searchBar = document.getElementById('search-bar'), statusContainer = document.getElementById('status-container'), modal = document.getElementById('player-modal'), videoPlayer = document.getElementById('video-player'), closeModal = document.getElementById('close-modal'), playerStatus = document.getElementById('player-status');
+            let hls, allChannels = [], hlsErrorTimeout;
 
-            // ***** YE LINE BADAL DI GAYI HAI *****
-            const M3U_URL = 'https://iptv-org.github.io/iptv/countries/pk.m3u'; // Pakistan ke channels
+            const M3U_URL = 'https://iptv-org.github.io/iptv/countries/pk.m3u';
 
             async function fetchAndParseM3U() {
                 try {
                     const response = await fetch(M3U_URL);
                     if (!response.ok) throw new Error('Network response was not ok');
-                    const data = await response.text();
-                    const lines = data.split('\n'), channels = [];
+                    const data = await response.text(), lines = data.split('\n'), channels = [];
                     for (let i = 0; i < lines.length; i++) {
                         if (lines[i].startsWith('#EXTINF:')) {
-                            const infoLine = lines[i], urlLine = lines[i + 1];
-                            const logoMatch = infoLine.match(/tvg-logo="([^"]+)"/), nameMatch = infoLine.match(/,(.+)/);
-                            if (logoMatch && nameMatch && urlLine && urlLine.startsWith('http')) {
-                                channels.push({ logo: logoMatch[1], name: nameMatch[1].trim(), url: urlLine.trim() });
-                            }
+                            const infoLine = lines[i], urlLine = lines[i + 1], logoMatch = infoLine.match(/tvg-logo="([^"]+)"/), nameMatch = infoLine.match(/,(.+)/);
+                            if (logoMatch && nameMatch && urlLine && urlLine.startsWith('http')) channels.push({ logo: logoMatch[1], name: nameMatch[1].trim(), url: urlLine.trim() });
                         }
                     }
                     return channels.filter(c => c.logo && c.name && c.url);
-                } catch (error) {
-                    console.error('Failed to fetch playlist:', error);
-                    statusContainer.innerHTML = '<p>Error loading channels. Please refresh.</p>';
-                    return [];
-                }
+                } catch (error) { statusContainer.innerHTML = '<p>Error loading channels. Please check your internet and refresh.</p>'; return []; }
             }
 
             function displayChannels(channels) {
@@ -103,31 +93,56 @@
             }
 
             function playChannel(channel) {
+                videoPlayer.style.display = 'none';
+                playerStatus.style.display = 'block';
+                playerStatus.textContent = `Loading: ${channel.name}...`;
+                modal.style.display = 'flex';
+
                 if (Hls.isSupported()) {
                     if (hls) hls.destroy();
                     hls = new Hls();
                     hls.loadSource(channel.url);
                     hls.attachMedia(videoPlayer);
-                    hls.on(Hls.Events.MANIFEST_PARSED, () => videoPlayer.play());
+
+                    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                        clearTimeout(hlsErrorTimeout); // Cancel timeout if loading is successful
+                        videoPlayer.style.display = 'block';
+                        playerStatus.style.display = 'none';
+                        videoPlayer.play();
+                    });
+
+                    // *** YEH NAYA ERROR HANDLING CODE HAI ***
+                    hls.on(Hls.Events.ERROR, (event, data) => {
+                        if (data.fatal) {
+                            playerStatus.textContent = 'This channel is currently unavailable. Please try another one.';
+                            hls.destroy();
+                        }
+                    });
+                    
+                    // Add a 15-second timeout
+                    hlsErrorTimeout = setTimeout(() => {
+                        playerStatus.textContent = 'Failed to load the channel. It might be offline.';
+                        hls.destroy();
+                    }, 15000);
+
                 } else {
                     videoPlayer.src = channel.url;
+                    videoPlayer.style.display = 'block';
+                    playerStatus.style.display = 'none';
                     videoPlayer.play();
                 }
-                modal.style.display = 'flex';
             }
 
-            closeModal.addEventListener('click', () => {
+            function stopPlayer() {
                 modal.style.display = 'none';
                 videoPlayer.pause();
                 videoPlayer.src = '';
                 if (hls) hls.destroy();
-            });
+                clearTimeout(hlsErrorTimeout);
+            }
 
-            searchBar.addEventListener('input', (e) => {
-                const searchTerm = e.target.value.toLowerCase();
-                const filteredChannels = allChannels.filter(c => c.name.toLowerCase().includes(searchTerm));
-                displayChannels(filteredChannels);
-            });
+            searchBar.addEventListener('input', e => displayChannels(allChannels.filter(c => c.name.toLowerCase().includes(e.target.value.toLowerCase()))));
+            closeModal.addEventListener('click', stopPlayer);
 
             async function init() {
                 allChannels = await fetchAndParseM3U();
@@ -139,6 +154,13 @@
                 }
             }
             init();
+
+            // Register service worker for PWA functionality
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/sw.js');
+                });
+            }
         });
     </script>
 </body>
