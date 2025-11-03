@@ -30,10 +30,6 @@ header h1 {
     font-weight: 600;
 }
 
-.search-container {
-    margin-top: 15px;
-}
-
 #search-bar {
     width: 50%;
     padding: 12px 20px;
@@ -49,6 +45,11 @@ header h1 {
 #search-bar:focus {
     border-color: var(--text-color);
     box-shadow: 0 0 10px rgba(233, 69, 96, 0.5);
+}
+
+#search-bar:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
 }
 
 main {
@@ -70,6 +71,7 @@ main {
     width: 100%;
     border-radius: 8px;
     background-color: #000;
+    aspect-ratio: 16 / 9;
 }
 
 #now-playing {
@@ -79,6 +81,9 @@ main {
 
 #now-playing h2 {
     font-size: 1.2em;
+    color: var(--light-text);
+}
+#now-playing.placeholder-text h2 {
     color: var(--text-color);
 }
 
@@ -92,21 +97,10 @@ main {
     padding-right: 10px;
 }
 
-/* Custom Scrollbar */
-.channel-grid::-webkit-scrollbar {
-    width: 8px;
-}
-.channel-grid::-webkit-scrollbar-track {
-    background: var(--secondary-color);
-    border-radius: 10px;
-}
-.channel-grid::-webkit-scrollbar-thumb {
-    background: var(--accent-color);
-    border-radius: 10px;
-}
-.channel-grid::-webkit-scrollbar-thumb:hover {
-    background: var(--text-color);
-}
+.channel-grid::-webkit-scrollbar { width: 8px; }
+.channel-grid::-webkit-scrollbar-track { background: var(--secondary-color); border-radius: 10px; }
+.channel-grid::-webkit-scrollbar-thumb { background: var(--accent-color); border-radius: 10px; }
+.channel-grid::-webkit-scrollbar-thumb:hover { background: var(--text-color); }
 
 .channel-card {
     background-color: var(--secondary-color);
@@ -139,6 +133,22 @@ main {
     text-overflow: ellipsis;
 }
 
+.status-container {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+}
+
+.status-message {
+    color: var(--light-text);
+    margin-top: 20px;
+    font-size: 1.1em;
+}
+
 .loader {
     border: 8px solid var(--accent-color);
     border-top: 8px solid var(--text-color);
@@ -146,8 +156,6 @@ main {
     width: 60px;
     height: 60px;
     animation: spin 1s linear infinite;
-    margin: 50px auto;
-    grid-column: 1 / -1; /* Take full width */
 }
 
 @keyframes spin {
@@ -156,13 +164,8 @@ main {
 }
 
 @media (max-width: 992px) {
-    main {
-        flex-direction: column;
-    }
-    .video-container {
-        position: static;
-    }
-    .channel-grid {
-        max-height: none;
-    }
+    main { flex-direction: column; }
+    .video-container { position: static; }
+    .channel-grid { max-height: 50vh; }
+    #search-bar { width: 80%; }
 }
